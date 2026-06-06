@@ -158,6 +158,10 @@ export default function HistoryScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#090D1A' }]}>
+      {/* Background Ambient Glows */}
+      <View style={styles.bgGlowTop} pointerEvents="none" />
+      <View style={styles.bgGlowBottom} pointerEvents="none" />
+
       {/* HEADER */}
       <View style={styles.header}>
         <View>
@@ -190,60 +194,69 @@ export default function HistoryScreen() {
           </View>
         ) : (
           <View style={styles.historyList}>
-            {history.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={styles.historyCard}
-                onPress={() => {
-                  setSelectedSession(item);
-                  setIsSummaryVisible(true);
-                }}
-                onLongPress={() => handleDeleteSession(item.id)}
-              >
-                {/* Score badge */}
-                <View
-                  style={[
-                    styles.scoreBadge,
-                    {
-                      borderColor: getScoreColor(item.score),
-                      backgroundColor: getScoreColor(item.score) + '15',
-                    },
-                  ]}
+            {history.map((item) => {
+              const cardColor = getScoreColor(item.score);
+              const glassStyle = {
+                backgroundColor: `${cardColor}06`, // very faint tint for glass background
+                borderColor: `${cardColor}40`,     // glow border
+                borderWidth: 1.5,
+              };
+
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[styles.historyCard, glassStyle]}
+                  onPress={() => {
+                    setSelectedSession(item);
+                    setIsSummaryVisible(true);
+                  }}
+                  onLongPress={() => handleDeleteSession(item.id)}
                 >
-                  <Text style={[styles.scoreVal, { color: getScoreColor(item.score) }]}>
-                    {item.score}
-                  </Text>
-                  <Text style={[styles.scoreLbl, { color: getScoreColor(item.score) }]}>score</Text>
-                </View>
-
-                {/* Info summary */}
-                <View style={styles.cardInfo}>
-                  <View style={styles.cardHeaderRow}>
-                    <Text style={styles.ratingText}>{item.rating} Rating</Text>
-                    <Text style={styles.dateText}>
-                      {new Date(item.endTime).toLocaleDateString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
+                  {/* Score badge */}
+                  <View
+                    style={[
+                      styles.scoreBadge,
+                      {
+                        borderColor: cardColor,
+                        backgroundColor: cardColor + '15',
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.scoreVal, { color: cardColor }]}>
+                      {item.score}
                     </Text>
+                    <Text style={[styles.scoreLbl, { color: cardColor }]}>score</Text>
                   </View>
-                  <View style={styles.cardMetricsRow}>
-                    <Text style={styles.metricText}>
-                      ⏱️ {formatDuration(item.duration)}
-                    </Text>
-                    <Text style={styles.metricText}>
-                      📍 {(item.distance / 1000).toFixed(2)} km
-                    </Text>
-                    <Text style={styles.metricText}>
-                      🛑 {item.events.length} event{item.events.length !== 1 ? 's' : ''}
-                    </Text>
-                  </View>
-                </View>
 
-                {/* Chevron */}
-                <IconSymbol size={16} name="chevron.right" color="#475569" />
-              </TouchableOpacity>
-            ))}
+                  {/* Info summary */}
+                  <View style={styles.cardInfo}>
+                    <View style={styles.cardHeaderRow}>
+                      <Text style={styles.ratingText}>{item.rating} Rating</Text>
+                      <Text style={styles.dateText}>
+                        {new Date(item.endTime).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
+                      </Text>
+                    </View>
+                    <View style={styles.cardMetricsRow}>
+                      <Text style={styles.metricText}>
+                        ⏱️ {formatDuration(item.duration)}
+                      </Text>
+                      <Text style={styles.metricText}>
+                        📍 {(item.distance / 1000).toFixed(2)} km
+                      </Text>
+                      <Text style={styles.metricText}>
+                        🛑 {item.events.length} event{item.events.length !== 1 ? 's' : ''}
+                      </Text>
+                    </View>
+                  </View>
+
+                  {/* Chevron */}
+                  <IconSymbol size={16} name="chevron.right" color="#475569" />
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
 
@@ -269,6 +282,30 @@ export default function HistoryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  bgGlowTop: {
+    position: 'absolute',
+    top: -120,
+    right: -120,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)', // Indigo glow
+    opacity: 0.8,
+    zIndex: 0,
+  },
+  bgGlowBottom: {
+    position: 'absolute',
+    bottom: -150,
+    left: -150,
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: 'rgba(168, 85, 247, 0.12)', // Purple glow
+    opacity: 0.7,
+    zIndex: 0,
   },
   header: {
     flexDirection: 'row',
@@ -304,11 +341,11 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   chartContainer: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(139, 92, 246, 0.06)', // Purple glass
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(139, 92, 246, 0.25)',
     marginBottom: 25,
   },
   chartTitle: {
@@ -381,11 +418,8 @@ const styles = StyleSheet.create({
   historyCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
     borderRadius: 16,
     padding: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
   },
   scoreBadge: {
     width: 48,

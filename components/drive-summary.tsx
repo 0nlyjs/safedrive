@@ -48,8 +48,19 @@ export const DriveSummary: React.FC<DriveSummaryProps> = ({ session, onClose }) 
     return acc;
   }, {} as Record<EventType, number>);
 
+  const scoreColor = getScoreColor(session.score);
+  const glassScoreCard = {
+    backgroundColor: `${scoreColor}06`,
+    borderColor: `${scoreColor}40`,
+    borderWidth: 1.5,
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: '#090D1A' }]}>
+      {/* Background Ambient Glows */}
+      <View style={styles.bgGlowTop} pointerEvents="none" />
+      <View style={styles.bgGlowBottom} pointerEvents="none" />
+
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Drive Session Summary</Text>
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
@@ -59,7 +70,7 @@ export const DriveSummary: React.FC<DriveSummaryProps> = ({ session, onClose }) 
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {/* Score & Rating Glassmorphic Card */}
-        <View style={styles.scoreCard}>
+        <View style={[styles.scoreCard, glassScoreCard]}>
           <View style={styles.scoreCircleContainer}>
             <View style={[styles.scoreCircle, { borderColor: getScoreColor(session.score) }]}>
               <Text style={styles.scoreText}>{session.score}</Text>
@@ -190,7 +201,31 @@ export const DriveSummary: React.FC<DriveSummaryProps> = ({ session, onClose }) 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0F172A', // Slate 900
+    backgroundColor: '#090D1A',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  bgGlowTop: {
+    position: 'absolute',
+    top: -120,
+    right: -120,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)', // Indigo glow
+    opacity: 0.8,
+    zIndex: 0,
+  },
+  bgGlowBottom: {
+    position: 'absolute',
+    bottom: -150,
+    left: -150,
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: 'rgba(168, 85, 247, 0.12)', // Purple glow
+    opacity: 0.7,
+    zIndex: 0,
   },
   header: {
     flexDirection: 'row',
@@ -221,11 +256,8 @@ const styles = StyleSheet.create({
   scoreCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(30, 41, 59, 0.6)', // Slate 800
     borderRadius: 20,
     padding: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
     marginBottom: 20,
   },
   scoreCircleContainer: {
@@ -277,12 +309,12 @@ const styles = StyleSheet.create({
   },
   statBox: {
     flex: 1,
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(99, 102, 241, 0.06)',
     borderRadius: 16,
     padding: 14,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
   },
   statVal: {
     fontSize: 16,
@@ -305,9 +337,9 @@ const styles = StyleSheet.create({
     paddingLeft: 4,
   },
   coachCard: {
-    backgroundColor: 'rgba(124, 58, 237, 0.1)', // Purple tint
-    borderColor: 'rgba(139, 92, 246, 0.2)',
-    borderWidth: 1,
+    backgroundColor: 'rgba(139, 92, 246, 0.06)', // Purple glass
+    borderColor: 'rgba(139, 92, 246, 0.25)',
+    borderWidth: 1.5,
     borderRadius: 16,
     padding: 18,
     marginTop: 20,
@@ -329,11 +361,11 @@ const styles = StyleSheet.create({
     color: '#DDD6FE',
   },
   breakdownCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(20, 184, 166, 0.06)', // Teal glass
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(20, 184, 166, 0.25)',
   },
   breakdownItem: {
     flexDirection: 'row',
@@ -380,11 +412,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   timelineCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(245, 158, 11, 0.06)', // Amber glass
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(245, 158, 11, 0.25)',
   },
   timelineItem: {
     flexDirection: 'row',
@@ -438,7 +470,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#0F172A',
+    backgroundColor: 'transparent',
     padding: 20,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255, 255, 255, 0.05)',

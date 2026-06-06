@@ -163,6 +163,10 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: '#090D1A' }]}>
+      {/* Background Ambient Glows */}
+      <View style={styles.bgGlowTop} pointerEvents="none" />
+      <View style={styles.bgGlowBottom} pointerEvents="none" />
+
       {/* HEADER */}
       <View style={styles.header}>
         <View>
@@ -569,6 +573,30 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  bgGlowTop: {
+    position: 'absolute',
+    top: -120,
+    right: -120,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: 'rgba(99, 102, 241, 0.15)', // Indigo glow
+    opacity: 0.8,
+    zIndex: 0,
+  },
+  bgGlowBottom: {
+    position: 'absolute',
+    bottom: -150,
+    left: -150,
+    width: 400,
+    height: 400,
+    borderRadius: 200,
+    backgroundColor: 'rgba(168, 85, 247, 0.12)', // Purple glow
+    opacity: 0.7,
+    zIndex: 0,
   },
   header: {
     flexDirection: 'row',
@@ -621,6 +649,11 @@ const styles = StyleSheet.create({
   },
   welcomeCard: {
     marginBottom: 20,
+    backgroundColor: 'rgba(99, 102, 241, 0.06)',
+    padding: 18,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
   },
   welcomeTitle: {
     fontSize: 22,
@@ -634,11 +667,11 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
   },
   permCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(99, 102, 241, 0.06)',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
     marginBottom: 20,
   },
   cardHeader: {
@@ -678,11 +711,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   modeCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(139, 92, 246, 0.06)',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(139, 92, 246, 0.25)',
     marginBottom: 25,
   },
   toggleContainer: {
@@ -731,10 +764,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     shadowColor: '#6366F1',
     shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.4,
-    shadowRadius: 18,
+    shadowOpacity: 0.6,
+    shadowRadius: 24,
     borderWidth: 8,
-    borderColor: 'rgba(255, 255, 255, 0.08)',
+    borderColor: 'rgba(99, 102, 241, 0.4)',
   },
   glowingCore: {
     ...StyleSheet.absoluteFillObject,
@@ -748,11 +781,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   scenariosCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(20, 184, 166, 0.06)',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(20, 184, 166, 0.25)',
     marginBottom: 20,
     marginTop: 15,
   },
@@ -778,11 +811,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   lastDriveCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(16, 185, 129, 0.06)',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(16, 185, 129, 0.25)',
     marginBottom: 40,
   },
   lastDriveContent: {
@@ -866,12 +899,12 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   calibrationCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(99, 102, 241, 0.06)',
     borderRadius: 16,
     padding: 30,
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
     marginVertical: 40,
   },
   calibrationTitle: {
@@ -944,9 +977,9 @@ const styles = StyleSheet.create({
   },
   statsDashboard: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    backgroundColor: 'rgba(99, 102, 241, 0.06)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(99, 102, 241, 0.25)',
     borderRadius: 16,
     paddingVertical: 14,
     marginBottom: 20,
@@ -978,11 +1011,11 @@ const styles = StyleSheet.create({
     fontWeight: 'normal',
   },
   telemetryCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(168, 85, 247, 0.06)',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(168, 85, 247, 0.25)',
     marginBottom: 20,
   },
   telemetryGrid: {
@@ -1017,7 +1050,7 @@ const styles = StyleSheet.create({
   },
   simulatorCard: {
     backgroundColor: 'rgba(56, 189, 248, 0.06)',
-    borderColor: 'rgba(56, 189, 248, 0.15)',
+    borderColor: 'rgba(56, 189, 248, 0.25)',
     borderWidth: 1.5,
     borderRadius: 16,
     padding: 16,
@@ -1071,11 +1104,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   eventsLogCard: {
-    backgroundColor: 'rgba(30, 41, 59, 0.4)',
+    backgroundColor: 'rgba(239, 68, 68, 0.06)',
     borderRadius: 16,
     padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.05)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(239, 68, 68, 0.25)',
     marginBottom: 30,
   },
   emptyEventsText: {

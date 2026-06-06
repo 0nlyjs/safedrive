@@ -174,6 +174,9 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
   // Low-pass filter smoothing refs
   const smoothUserAccelRef = useRef<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
   const smoothGyroRef = useRef<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
+  const gpsSpeedDeltaRef = useRef<number>(0);
+  const lastGpsSpeedRef = useRef<number>(0);
+  const excessiveMovementTimeOverRef = useRef<number>(0);
 
   // Keep latest state in ref to avoid react closure stale state in fast sensor callbacks
   const stateRef = useRef({
@@ -201,6 +204,21 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     loadHistory();
     checkPermissionsSilently();
   }, []);
+
+  // Helper to calculate score with distance/duration dilution
+  const calculateScore = (events: DrivingEvent[], dist: number, dur: number) => {
+    const totalPenalty = events.reduce((sum, event) => sum + event.penalty, 0);
+    // Dilute penalty over distance (every 3 km = 3000m) or duration (every 5 mins = 300s)
+    const distanceFactor = dist / 3000;
+    const durationFactor = dur / 300;
+    const dilutionFactor = Math.max(1, Math.max(distanceFactor, durationFactor));
+    return Math.max(0, Math.round(100 - totalPenalty / dilutionFactor));
+  };
+
+  // Recalculate score dynamically as metrics update
+  useEffect(() => {
+    setScore(calculateScore(detectedEvents, distance, duration));
+  }, [detectedEvents, distance, duration]);
 
   // Update rating based on score
   useEffect(() => {
@@ -337,8 +355,6 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     triggerHaptic(type === 'phone_handling' ? 'error' : 'warning');
 
     const penalty = EVENT_PENALTIES[type];
-    const newScore = Math.max(0, stateRef.current.score - penalty);
-    setScore(newScore);
 
     // Get current coordinate if available
     const coordinates = stateRef.current.routeCoordinates;
@@ -367,9 +383,9 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     rotRate: { alpha: number; beta: number; gamma: number },
     rot: { alpha: number; beta: number; gamma: number }
   ) => {
-    // Apply low-pass filter (Exponential Moving Average, alpha = 0.20)
-    // Filters out high-frequency engine vibration and road noise
-    const alpha = 0.20;
+    // Apply low-pass filter (Exponential Moving Average, alpha = 0.10)
+    // Heavier smoothing filters out high-frequency engine vibration and road noise
+    const alpha = 0.10;
     smoothUserAccelRef.current = {
       x: alpha * userAccel.x + (1 - alpha) * smoothUserAccelRef.current.x,
       y: alpha * userAccel.y + (1 - alpha) * smoothUserAccelRef.current.y,
@@ -420,6 +436,18 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
       return;
     }
 
+    // --- DYNAMIC GRAVITY TRACKING ---
+    // Slowly shift estimated gravity vector based on long-term raw accel average
+    // Keeps downward axis calibrated if the phone shifts position in its mount
+    if (isCalibratedRef.current) {
+      const gAlpha = 0.01; // Time constant ~10 seconds at 10Hz
+      gravityVectorRef.current = {
+        x: gAlpha * accel.x + (1 - gAlpha) * gravityVectorRef.current.x,
+        y: gAlpha * accel.y + (1 - gAlpha) * gravityVectorRef.current.y,
+        z: gAlpha * accel.z + (1 - gAlpha) * gravityVectorRef.current.z,
+      };
+    }
+
     // --- PHYSICS CALCULATIONS (ORIENTATION INDEPENDENT) ---
     // 1. Gravity unit vector (downward axis of phone relative to earth)
     const gVec = gravityVectorRef.current;
@@ -440,7 +468,21 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     // 4. Project gyroscope vector (rotation rates) onto vertical gravity axis to get yaw rate (turn rate of car)
     const yawRate = sGyro.x * uVert.x + sGyro.y * uVert.y + sGyro.z * uVert.z; // in rad/s
 
-    // 5. Tilt component of rotation rate (pitch and roll rate, representing phone tilt)
+    // 5. Centripetal / Lateral Acceleration
+    const speed = stateRef.current.currentSpeed; // in km/h
+    const speedMps = speed / 3.6;
+    const absYaw = Math.abs(yawRate);
+    const aLateral = speedMps * absYaw; // in m/s^2
+    const aLateralG = aLateral / 9.81;
+
+    // 6. Subtract lateral force from total horizontal force to isolate longitudinal force
+    const hAccelG = hAccelMag / 9.81;
+    let aLongitudinalG = 0;
+    if (hAccelG > aLateralG) {
+      aLongitudinalG = Math.sqrt(hAccelG * hAccelG - aLateralG * aLateralG);
+    }
+
+    // 7. Tilt component of rotation rate (pitch and roll rate, representing phone tilt)
     const pitchRollRate = Math.sqrt(
       sGyro.x * sGyro.x + sGyro.y * sGyro.y + sGyro.z * sGyro.z - yawRate * yawRate
     ) || 0; // in rad/s
@@ -448,26 +490,25 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     // --- EVENT DETECTION ALGORITHMS ---
     const now = Date.now();
 
-    // 1. Harsh Braking & Acceleration (requires sustained horizontal force)
-    const gForceHoriz = hAccelMag / 9.81; // in G's
-    const speed = stateRef.current.currentSpeed; // in km/h
+    // 1. Harsh Braking & Acceleration (requires sustained longitudinal force)
+    const ACCEL_THRESHOLD_G = 0.38; // ~3.73 m/s^2
+    const BRAKE_THRESHOLD_G = 0.45; // ~4.41 m/s^2
 
-    // Calibrated Baselines: 0.36g threshold for acceleration (3.53 m/s^2), 0.40g for braking (3.92 m/s^2)
-    const ACCEL_THRESHOLD_G = 0.36;
-    const BRAKE_THRESHOLD_G = 0.40;
-
-    if (gForceHoriz > ACCEL_THRESHOLD_G) {
-      const isBraking = speed > 5 && vAccelMag < -0.5; // Decelerating or downward pitch indicates nose dive (braking)
+    if (aLongitudinalG > ACCEL_THRESHOLD_G) {
+      // Use GPS speed delta and vertical nose-dive as verification for braking vs acceleration direction
+      const isBraking = gpsSpeedDeltaRef.current < -0.3 || (gpsSpeedDeltaRef.current <= 0.3 && vAccelMag < -0.2);
       
-      if (isBraking || gForceHoriz > BRAKE_THRESHOLD_G) {
-        harshBrakeTimeOverRef.current += 100; // tick rate is 100ms
-        if (harshBrakeTimeOverRef.current >= 1500) { // 1.5 seconds sustained
-          logDrivingEvent('harsh_brake', gForceHoriz);
+      if (isBraking) {
+        if (aLongitudinalG > BRAKE_THRESHOLD_G) {
+          harshBrakeTimeOverRef.current += 100; // tick rate is 100ms
+          if (harshBrakeTimeOverRef.current >= 1500) { // 1.5 seconds sustained
+            logDrivingEvent('harsh_brake', aLongitudinalG);
+          }
         }
       } else {
         harshAccelTimeOverRef.current += 100;
         if (harshAccelTimeOverRef.current >= 1500) { // 1.5 seconds sustained
-          logDrivingEvent('harsh_acceleration', gForceHoriz);
+          logDrivingEvent('harsh_acceleration', aLongitudinalG);
         }
       }
     } else {
@@ -475,25 +516,25 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
       harshAccelTimeOverRef.current = 0;
     }
 
-    // 2. Sharp Turns (yaw rate sustained > 0.55 rad/s, approx 31 deg/s)
-    const YAW_RATE_THRESHOLD = 0.55; 
-    const absYaw = Math.abs(yawRate);
-    if (absYaw > YAW_RATE_THRESHOLD) {
+    // 2. Sharp Turns (yaw rate sustained > 0.60 rad/s AND lateral G force > 0.35g)
+    const YAW_RATE_THRESHOLD = 0.60;
+    const LATERAL_G_THRESHOLD = 0.35;
+    if (absYaw > YAW_RATE_THRESHOLD && aLateralG > LATERAL_G_THRESHOLD) {
       sharpTurnTimeOverRef.current += 100;
       if (sharpTurnTimeOverRef.current >= 1500) { // 1.5 seconds sustained
-        logDrivingEvent('sharp_turn', absYaw);
+        logDrivingEvent('sharp_turn', aLateralG);
       }
     } else {
       sharpTurnTimeOverRef.current = 0;
     }
 
     // 3. Aggressive Steering / Swerving (quick left-to-right steering weave)
-    if (absYaw > 0.40) {
+    if (absYaw > 0.45 && speed > 15) {
       const direction = Math.sign(yawRate);
       const lastSteer = steeringOscillationRef.current;
       if (lastSteer.direction !== 0 && lastSteer.direction !== direction && now - lastSteer.lastPeakTime < 1200) {
         const peakToPeakVal = absYaw + Math.abs(lastSteer.lastPeakVal);
-        if (peakToPeakVal > 0.85) {
+        if (peakToPeakVal > 1.0) {
           logDrivingEvent('aggressive_steering', peakToPeakVal);
           steeringOscillationRef.current = { lastPeakTime: 0, lastPeakVal: 0, direction: 0 };
         }
@@ -507,24 +548,29 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     }
 
     // 4. Phone Handling (Phone tilt changes pitch/roll when vehicle is moving)
-    // If phone rotates around local horizontal axes > 1.0 rad/s (~57 deg/s) for 2.0s
-    const PHONE_ROTATION_THRESHOLD = 1.0;
+    // If phone rotates around local horizontal axes > 1.2 rad/s (~69 deg/s) for 2.5s
+    const PHONE_ROTATION_THRESHOLD = 1.2;
     if (pitchRollRate > PHONE_ROTATION_THRESHOLD && speed > 5) {
       phoneHandlingTimeOverRef.current += 100;
-      if (phoneHandlingTimeOverRef.current >= 2000) { // 2.0 seconds sustained
+      if (phoneHandlingTimeOverRef.current >= 2500) { // 2.5 seconds sustained
         logDrivingEvent('phone_handling', pitchRollRate);
       }
     } else {
       phoneHandlingTimeOverRef.current = 0;
     }
 
-    // 5. Excessive Device Movement (rattling, sliding, dropping)
-    // Smoothed User acceleration magnitude exceeds 12.0 m/s^2 (~1.22g) for a heavy spike
+    // 5. Excessive Device Movement (rattling, sliding, dropping, or phone falling)
+    // Sustained user acceleration magnitude > 14.0 m/s^2 (~1.43g) for 400ms OR instant impact > 22.0 m/s^2
     const userAccelMag = Math.sqrt(
       sUserAccel.x * sUserAccel.x + sUserAccel.y * sUserAccel.y + sUserAccel.z * sUserAccel.z
     );
-    if (userAccelMag > 12.0) {
-      logDrivingEvent('excessive_movement', userAccelMag);
+    if (userAccelMag > 14.0) {
+      excessiveMovementTimeOverRef.current += 100;
+      if (excessiveMovementTimeOverRef.current >= 400 || userAccelMag > 22.0) {
+        logDrivingEvent('excessive_movement', userAccelMag);
+      }
+    } else {
+      excessiveMovementTimeOverRef.current = 0;
     }
   };
 
@@ -552,6 +598,9 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     harshAccelTimeOverRef.current = 0;
     sharpTurnTimeOverRef.current = 0;
     phoneHandlingTimeOverRef.current = 0;
+    gpsSpeedDeltaRef.current = 0;
+    lastGpsSpeedRef.current = 0;
+    excessiveMovementTimeOverRef.current = 0;
     steeringOscillationRef.current = { lastPeakTime: 0, lastPeakVal: 0, direction: 0 };
     lastEventTriggerTimeRef.current = {
       harsh_brake: 0,
@@ -607,6 +656,9 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
           (loc) => {
             const { latitude, longitude, speed } = loc.coords;
             const speedKmh = Math.max(0, (speed || 0) * 3.6); // speed is in m/s, convert to km/h
+
+            gpsSpeedDeltaRef.current = speedKmh - lastGpsSpeedRef.current;
+            lastGpsSpeedRef.current = speedKmh;
 
             setCurrentSpeed(Math.round(speedKmh));
             setMaxSpeed((prev) => Math.round(Math.max(prev, speedKmh)));
@@ -934,7 +986,11 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
 
       // 3. Location update simulator (every 10 ticks = 1 second)
       if (tickCount % 10 === 0 && !stateRef.current.isCalibrating) {
-        setCurrentSpeed(Math.round(speedVal));
+        const roundedSpeed = Math.round(speedVal);
+        gpsSpeedDeltaRef.current = roundedSpeed - lastGpsSpeedRef.current;
+        lastGpsSpeedRef.current = roundedSpeed;
+
+        setCurrentSpeed(roundedSpeed);
         setMaxSpeed((prev) => Math.round(Math.max(prev, speedVal)));
 
         const pathIdx = mockPathIndexRef.current;
