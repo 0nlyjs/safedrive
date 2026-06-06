@@ -7,9 +7,14 @@
     "icon": "./assets/images/icon.png",
     "scheme": "safedrive",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSMotionUsageDescription": "Allow Safedrive to access your device motion to detect driving events like harsh acceleration, braking, and steering.",
+        "NSLocationWhenInUseUsageDescription": "Allow Safedrive to access your location to track your speed and map your driving route.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Allow Safedrive to track your driving route and analyze safety in the background.",
+        "NSLocationAlwaysUsageDescription": "Allow Safedrive to track your driving route and analyze safety in the background."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,8 +23,13 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "ACTIVITY_RECOGNITION"
+      ]
     },
     "web": {
       "output": "static",
@@ -38,7 +48,22 @@
             "backgroundColor": "#000000"
           }
         }
-      ]
+      ],
+      [
+        "expo-sensors",
+        {
+          "motionPermission": "Allow Safedrive to access your device motion to detect driving events like harsh acceleration, braking, and steering."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Safedrive to access your location to track your speed and map your driving route."
+        }
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
