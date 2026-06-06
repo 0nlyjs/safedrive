@@ -56,12 +56,12 @@ The following thresholds were defined based on passenger vehicle physics and tel
 
 | Event Type | Threshold Formula / Value | Time Over Threshold | Score Penalty | Physics-Based Rationale |
 | :--- | :--- | :--- | :--- | :--- |
-| **Harsh Braking** | $a_{horiz} > 3.43\text{ m/s}^2$ ($0.35g$) and $v_{accel} < -0.5\text{ m/s}^2$ | $\ge 0.8\text{ seconds}$ | **-5** | Deceleration exceeding $0.35g$ corresponds to sudden stops, typically caused by tailgating. |
-| **Harsh Acceleration** | $a_{horiz} > 2.94\text{ m/s}^2$ ($0.30g$) and $v_{accel} \ge -0.5\text{ m/s}^2$ | $\ge 0.8\text{ seconds}$ | **-5** | Accelerations exceeding $0.30g$ signify aggressive throttle input, increasing fuel burn and accident risk. |
-| **Sharp Turn** | $|\omega_{yaw}| > 0.45\text{ rad/s}$ ($\approx 25^\circ/\text{s}$) | $\ge 1.0\text{ seconds}$ | **-3** | Entering curves at speed results in high lateral friction. A turn rate $> 25^\circ/\text{s}$ indicates cornering too fast. |
-| **Aggressive Steering / Swerve** | Yaw rate direction flips ($+\omega_{yaw} \to -\omega_{yaw}$) | Peak-to-peak amplitude $> 0.65\text{ rad/s}$ within $1.5\text{s}$ | **-3** | Quick lane weaving or swerving causes rapid, high-amplitude yaw rate oscillations. |
-| **Excessive Device Movement** | $||\vec{a}_{user}|| > 7.50\text{ m/s}^2$ | Instantaneous spike | **-2** | Large G-force spikes lasting $<0.3\text{s}$ without vehicle turns suggest the phone is loose, sliding, or has dropped. |
-| **Phone Handling** | $\omega_{tilt} > 0.70\text{ rad/s}$ ($\approx 40^\circ/\text{s}$) | $\ge 1.2\text{ seconds}$ while speed $> 5\text{ km/h}$ | **-10** | Tilt adjustments while the vehicle is in motion represent physical handling of the phone, a high-distraction hazard. |
+| **Harsh Braking** | $a_{horiz} > 3.92\text{ m/s}^2$ ($0.40g$) and $v_{accel} < -0.5\text{ m/s}^2$ | $\ge 1.5\text{ seconds}$ | **-5** | Deceleration exceeding $0.40g$ corresponds to sudden stops, typically caused by tailgating. |
+| **Harsh Acceleration** | $a_{horiz} > 3.53\text{ m/s}^2$ ($0.36g$) and $v_{accel} \ge -0.5\text{ m/s}^2$ | $\ge 1.5\text{ seconds}$ | **-5** | Accelerations exceeding $0.36g$ signify aggressive throttle input, increasing fuel burn and accident risk. |
+| **Sharp Turn** | $|\omega_{yaw}| > 0.55\text{ rad/s}$ ($\approx 31^\circ/\text{s}$) | $\ge 1.5\text{ seconds}$ | **-3** | Entering curves at speed results in high lateral friction. A turn rate $> 31^\circ/\text{s}$ indicates cornering too fast. |
+| **Aggressive Steering / Swerve** | Yaw rate direction flips ($+\omega_{yaw} \to -\omega_{yaw}$) | Peak-to-peak amplitude $> 0.85\text{ rad/s}$ within $1.2\text{s}$ | **-3** | Quick lane weaving or swerving causes rapid, high-amplitude yaw rate oscillations. |
+| **Excessive Device Movement** | $||\vec{a}_{user,smooth}|| > 12.00\text{ m/s}^2$ | Instantaneous spike | **-2** | Large G-force spikes lasting $<0.3\text{s}$ without vehicle turns suggest the phone is loose, sliding, or has dropped. |
+| **Phone Handling** | $\omega_{tilt} > 1.00\text{ rad/s}$ ($\approx 57^\circ/\text{s}$) | $\ge 2.0\text{ seconds}$ while speed $> 5\text{ km/h}$ | **-10** | Tilt adjustments while the vehicle is in motion represent physical handling of the phone, a high-distraction hazard. |
 
 ---
 

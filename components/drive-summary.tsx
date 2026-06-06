@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, Text, ScrollView, TouchableOpacity } from 'react-native';
+import { StyleSheet, Text, ScrollView, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { DriveSession, EVENT_TITLES, EVENT_PENALTIES, EventType } from '@/hooks/use-driving-session';
 import { RouteMap } from './route-map';
 import { IconSymbol } from './ui/icon-symbol';
@@ -48,7 +49,7 @@ export const DriveSummary: React.FC<DriveSummaryProps> = ({ session, onClose }) 
   }, {} as Record<EventType, number>);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Drive Session Summary</Text>
         <TouchableOpacity style={styles.closeButton} onPress={onClose}>
@@ -182,7 +183,7 @@ export const DriveSummary: React.FC<DriveSummaryProps> = ({ session, onClose }) 
           <Text style={styles.doneButtonText}>Done</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 };
 

@@ -5,11 +5,11 @@ import {
   View,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Modal,
   Alert,
   Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useDrivingSession, DriveSession } from '@/hooks/use-driving-session';
 import { DriveSummary } from '@/components/drive-summary';
 import { IconSymbol } from '@/components/ui/icon-symbol';

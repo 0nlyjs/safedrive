@@ -171,6 +171,10 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     phone_handling: 0,
   });
 
+  // Low-pass filter smoothing refs
+  const smoothUserAccelRef = useRef<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
+  const smoothGyroRef = useRef<{ x: number; y: number; z: number }>({ x: 0, y: 0, z: 0 });
+
   // Keep latest state in ref to avoid react closure stale state in fast sensor callbacks
   const stateRef = useRef({
     isDriving,
@@ -323,8 +327,8 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
   // Trigger Driving Event
   const logDrivingEvent = (type: EventType, magnitude: number) => {
     const now = Date.now();
-    // Throttle duplicate events of same type within 4 seconds (except device movement which can trigger a bit more often)
-    const throttleTime = type === 'excessive_movement' ? 2000 : 4000;
+    // Throttle duplicate events of same type (12s for driving events, 8s for movement spikes)
+    const throttleTime = type === 'excessive_movement' ? 8000 : 12000;
     if (now - lastEventTriggerTimeRef.current[type] < throttleTime) {
       return;
     }
@@ -363,11 +367,28 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     rotRate: { alpha: number; beta: number; gamma: number },
     rot: { alpha: number; beta: number; gamma: number }
   ) => {
-    // Save live sensor readings for UI gauges
+    // Apply low-pass filter (Exponential Moving Average, alpha = 0.20)
+    // Filters out high-frequency engine vibration and road noise
+    const alpha = 0.20;
+    smoothUserAccelRef.current = {
+      x: alpha * userAccel.x + (1 - alpha) * smoothUserAccelRef.current.x,
+      y: alpha * userAccel.y + (1 - alpha) * smoothUserAccelRef.current.y,
+      z: alpha * userAccel.z + (1 - alpha) * smoothUserAccelRef.current.z,
+    };
+    smoothGyroRef.current = {
+      x: alpha * gyro.x + (1 - alpha) * smoothGyroRef.current.x,
+      y: alpha * gyro.y + (1 - alpha) * smoothGyroRef.current.y,
+      z: alpha * gyro.z + (1 - alpha) * smoothGyroRef.current.z,
+    };
+
+    const sUserAccel = smoothUserAccelRef.current;
+    const sGyro = smoothGyroRef.current;
+
+    // Save smoothed sensor readings for UI gauges
     setSensorData({
       accel,
-      gyro,
-      userAccel,
+      gyro: sGyro,
+      userAccel: sUserAccel,
       rotation: rot,
       rotationRate: rotRate,
     });
@@ -406,23 +427,22 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     const uVert = { x: gVec.x / gMag, y: gVec.y / gMag, z: gVec.z / gMag };
 
     // 2. Project user acceleration onto vertical axis (v_accel = u_accel . uVert)
-    // userAccel represents acceleration excluding gravity in m/s^2.
-    const vAccelMag = userAccel.x * uVert.x + userAccel.y * uVert.y + userAccel.z * uVert.z;
+    const vAccelMag = sUserAccel.x * uVert.x + sUserAccel.y * uVert.y + sUserAccel.z * uVert.z;
 
     // 3. Subtract vertical component from user acceleration vector to get the horizontal user acceleration vector
     const hAccel = {
-      x: userAccel.x - vAccelMag * uVert.x,
-      y: userAccel.y - vAccelMag * uVert.y,
-      z: userAccel.z - vAccelMag * uVert.z,
+      x: sUserAccel.x - vAccelMag * uVert.x,
+      y: sUserAccel.y - vAccelMag * uVert.y,
+      z: sUserAccel.z - vAccelMag * uVert.z,
     };
     const hAccelMag = Math.sqrt(hAccel.x * hAccel.x + hAccel.y * hAccel.y + hAccel.z * hAccel.z); // in m/s^2
 
     // 4. Project gyroscope vector (rotation rates) onto vertical gravity axis to get yaw rate (turn rate of car)
-    const yawRate = gyro.x * uVert.x + gyro.y * uVert.y + gyro.z * uVert.z; // in rad/s
+    const yawRate = sGyro.x * uVert.x + sGyro.y * uVert.y + sGyro.z * uVert.z; // in rad/s
 
     // 5. Tilt component of rotation rate (pitch and roll rate, representing phone tilt)
     const pitchRollRate = Math.sqrt(
-      gyro.x * gyro.x + gyro.y * gyro.y + gyro.z * gyro.z - yawRate * yawRate
+      sGyro.x * sGyro.x + sGyro.y * sGyro.y + sGyro.z * sGyro.z - yawRate * yawRate
     ) || 0; // in rad/s
 
     // --- EVENT DETECTION ALGORITHMS ---
@@ -432,24 +452,21 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     const gForceHoriz = hAccelMag / 9.81; // in G's
     const speed = stateRef.current.currentSpeed; // in km/h
 
-    // Baselines: 0.3g threshold for acceleration (2.94 m/s^2), 0.35g for braking (3.43 m/s^2)
-    const ACCEL_THRESHOLD_G = 0.30;
-    const BRAKE_THRESHOLD_G = 0.35;
+    // Calibrated Baselines: 0.36g threshold for acceleration (3.53 m/s^2), 0.40g for braking (3.92 m/s^2)
+    const ACCEL_THRESHOLD_G = 0.36;
+    const BRAKE_THRESHOLD_G = 0.40;
 
     if (gForceHoriz > ACCEL_THRESHOLD_G) {
-      // Dynamic determination if braking or accelerating based on forward vector alignment or speed changes
-      // In the absence of speed changes, we look at the vector or treat it broadly
-      // If we have GPS speed, check acceleration vs deceleration
       const isBraking = speed > 5 && vAccelMag < -0.5; // Decelerating or downward pitch indicates nose dive (braking)
       
       if (isBraking || gForceHoriz > BRAKE_THRESHOLD_G) {
         harshBrakeTimeOverRef.current += 100; // tick rate is 100ms
-        if (harshBrakeTimeOverRef.current >= 800) { // 0.8 seconds
+        if (harshBrakeTimeOverRef.current >= 1500) { // 1.5 seconds sustained
           logDrivingEvent('harsh_brake', gForceHoriz);
         }
       } else {
         harshAccelTimeOverRef.current += 100;
-        if (harshAccelTimeOverRef.current >= 800) { // 0.8 seconds
+        if (harshAccelTimeOverRef.current >= 1500) { // 1.5 seconds sustained
           logDrivingEvent('harsh_acceleration', gForceHoriz);
         }
       }
@@ -458,12 +475,12 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
       harshAccelTimeOverRef.current = 0;
     }
 
-    // 2. Sharp Turns (yaw rate sustained > 0.45 rad/s)
-    const YAW_RATE_THRESHOLD = 0.45; // ~25 degrees per second
+    // 2. Sharp Turns (yaw rate sustained > 0.55 rad/s, approx 31 deg/s)
+    const YAW_RATE_THRESHOLD = 0.55; 
     const absYaw = Math.abs(yawRate);
     if (absYaw > YAW_RATE_THRESHOLD) {
       sharpTurnTimeOverRef.current += 100;
-      if (sharpTurnTimeOverRef.current >= 1000) { // 1.0 second
+      if (sharpTurnTimeOverRef.current >= 1500) { // 1.5 seconds sustained
         logDrivingEvent('sharp_turn', absYaw);
       }
     } else {
@@ -471,15 +488,13 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     }
 
     // 3. Aggressive Steering / Swerving (quick left-to-right steering weave)
-    // Detected when yaw rate peaks in one direction, then reverses to opposite direction within 1.5 seconds.
-    if (absYaw > 0.30) {
+    if (absYaw > 0.40) {
       const direction = Math.sign(yawRate);
       const lastSteer = steeringOscillationRef.current;
-      if (lastSteer.direction !== 0 && lastSteer.direction !== direction && now - lastSteer.lastPeakTime < 1500) {
+      if (lastSteer.direction !== 0 && lastSteer.direction !== direction && now - lastSteer.lastPeakTime < 1200) {
         const peakToPeakVal = absYaw + Math.abs(lastSteer.lastPeakVal);
-        if (peakToPeakVal > 0.65) {
+        if (peakToPeakVal > 0.85) {
           logDrivingEvent('aggressive_steering', peakToPeakVal);
-          // reset
           steeringOscillationRef.current = { lastPeakTime: 0, lastPeakVal: 0, direction: 0 };
         }
       } else {
@@ -492,12 +507,11 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     }
 
     // 4. Phone Handling (Phone tilt changes pitch/roll when vehicle is moving)
-    // If phone rotates around local horizontal axes > 0.7 rad/s (40 deg/s) for 1.2s
-    const PHONE_ROTATION_THRESHOLD = 0.7;
-    // Only flag phone handling if vehicle is moving (> 5 km/h) to avoid false positives when parked
+    // If phone rotates around local horizontal axes > 1.0 rad/s (~57 deg/s) for 2.0s
+    const PHONE_ROTATION_THRESHOLD = 1.0;
     if (pitchRollRate > PHONE_ROTATION_THRESHOLD && speed > 5) {
       phoneHandlingTimeOverRef.current += 100;
-      if (phoneHandlingTimeOverRef.current >= 1200) { // 1.2 seconds
+      if (phoneHandlingTimeOverRef.current >= 2000) { // 2.0 seconds sustained
         logDrivingEvent('phone_handling', pitchRollRate);
       }
     } else {
@@ -505,11 +519,11 @@ export const DrivingSessionProvider: React.FC<{ children: React.ReactNode }> = (
     }
 
     // 5. Excessive Device Movement (rattling, sliding, dropping)
-    // Standard deviation / magnitude spikes. User acceleration magnitude exceeds 7.5 m/s^2 for a quick spike
+    // Smoothed User acceleration magnitude exceeds 12.0 m/s^2 (~1.22g) for a heavy spike
     const userAccelMag = Math.sqrt(
-      userAccel.x * userAccel.x + userAccel.y * userAccel.y + userAccel.z * userAccel.z
+      sUserAccel.x * sUserAccel.x + sUserAccel.y * sUserAccel.y + sUserAccel.z * sUserAccel.z
     );
-    if (userAccelMag > 7.5) {
+    if (userAccelMag > 12.0) {
       logDrivingEvent('excessive_movement', userAccelMag);
     }
   };
